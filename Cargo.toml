@@ -10,8 +10,17 @@ rocket_codegen = "0.4.0"
 serde = "1.0"
 serde_json = "1.0"
 serde_derive = "1.0"
+reqwest = "0.9.6"
 
 [dependencies.rocket_contrib]
 version = "*"
 default-features = false
 features = ["json"]
+
+[[bin]]
+name = "db"
+path = "src/db.rs"
+
+[[bin]]
+name = "index"
+path = "src/index.rs"
