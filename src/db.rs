@@ -1,5 +1,6 @@
 #![feature(proc_macro_hygiene, decl_macro)]
 
+#[macro_use] extern crate log;
 #[macro_use] extern crate rocket;
 #[macro_use] extern crate rocket_contrib;
 #[macro_use] extern crate serde_derive;
@@ -59,7 +60,7 @@ fn get(key: String, state : State<Mutex<AppState>>) -> Option<Json<Data>> {
 
 #[get("/log/<from>", format = "json")]
 fn log(from: usize, state : State<Mutex<AppState>>) -> Json<Vec<Event>> {
-    println!("From: {}", from);
+    trace!("From: {}", from);
     let log = &state.lock().expect("lock state").log;
     if log.len() < from {
         return Json([].to_vec())

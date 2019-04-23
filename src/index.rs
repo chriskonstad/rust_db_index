@@ -1,6 +1,7 @@
 #![feature(proc_macro_hygiene, decl_macro)]
 #![feature(vec_remove_item)]
 
+#[macro_use] extern crate log;
 #[macro_use] extern crate rocket;
 #[macro_use] extern crate rocket_contrib;
 #[macro_use] extern crate serde_derive;
@@ -63,7 +64,7 @@ fn apply(event: Event, state: &mut MessageMap) {
                 }
             }
             for k in keys_to_delete {
-                println!("Deleting {}", k);
+                trace!("Deleting {}", k);
                 state.remove(&k);
             }
 
@@ -80,7 +81,7 @@ fn apply(event: Event, state: &mut MessageMap) {
                 }
             }
             for k in keys_to_delete {
-                println!("Deleting {}", k);
+                trace!("Deleting {}", k);
                 state.remove(&k);
             }
         }
@@ -100,10 +101,10 @@ fn background_update(state: Arc<Mutex<AppState>>) {
                     .json::<Vec<Event>>().unwrap();
                 let num_events = events.len();
                 if num_events != 0 {
-                    println!("Got {} new events", num_events);
+                    info!("Got {} new events", num_events);
                 }
                 for e in events.into_iter() {
-                    println!("{:#?}", e);
+                    info!("{:#?}", e);
                     apply(e, &mut s.db);
                 }
                 s.offset += num_events;
