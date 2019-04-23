@@ -54,7 +54,7 @@ fn get(
             &normalized_damerau_levenshtein(&key, b)).unwrap());
     match results.len() {
         0 => None,
-        _ => Some(Json(Match{keys: results.into_iter().flat_map(|k| hashmap.get(&k).clone().into_iter()).flat_map(|x| x.into_iter()).cloned().collect()})),
+        _ => Some(Json(Match{keys: results.into_iter().flat_map(|k| hashmap.get(&k).into_iter()).flat_map(|x| x.into_iter()).cloned().collect()})),
     }
 }
 
