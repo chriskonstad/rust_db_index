@@ -8,7 +8,9 @@
 use rocket_contrib::json::{Json, JsonValue};
 use rocket::State;
 
-use std::sync::Mutex;
+use std::thread;
+use std::time::Duration;
+use std::sync::{Arc, Mutex};
 use std::collections::HashMap;
 
 // TODO share these common structs between index + db
@@ -32,7 +34,7 @@ struct AppState {
 }
 
 #[get("/<key>", format = "json")]
-fn get(key: String, state : State<Mutex<AppState>>) -> Option<Json<Match>> {
+fn get(key: String, state : State<Arc<Mutex<AppState>>>) -> Option<Json<Match>> {
     let hashmap = &state.lock().unwrap().db;
     hashmap.get(&key).map(|keys| {
         Json(Match{
@@ -53,9 +55,16 @@ fn apply(event: Event, state: &mut MessageMap) {
     match event {
         Event::Set{key, value} => {
             // Delete old entry
-            for val in &mut state.values_mut() {
-                val.remove_item(&key);
-                // TODO if list is empty, remove it for good
+            let mut keys_to_delete = vec![];
+            for (k, v) in state.iter_mut() {
+                v.remove_item(&key);
+                if v.len() == 0 {
+                    keys_to_delete.push(k.clone());
+                }
+            }
+            for k in keys_to_delete {
+                println!("Deleting {}", k);
+                state.remove(&k);
             }
 
             // Add new entry
@@ -63,32 +72,53 @@ fn apply(event: Event, state: &mut MessageMap) {
             entry.push(key);
         }
         Event::Delete{key} => {
-            for val in &mut state.values_mut() {
-                val.remove_item(&key);
+            let mut keys_to_delete = vec![];
+            for (k, v) in state.iter_mut() {
+                v.remove_item(&key);
+                if v.len() == 0 {
+                    keys_to_delete.push(k.clone());
+                }
+            }
+            for k in keys_to_delete {
+                println!("Deleting {}", k);
+                state.remove(&k);
             }
         }
     }
 }
 
+fn background_update(state: Arc<Mutex<AppState>>) {
+    thread::spawn(move || {
+        loop {
+            {
+                let mut s = state.lock().unwrap();
+                let url = format!("http://localhost:8000/log/{}", s.offset);
+                let events = reqwest::Client::new()
+                    .get(&*url)
+                    .send()
+                    .unwrap()
+                    .json::<Vec<Event>>().unwrap();
+                let num_events = events.len();
+                if num_events != 0 {
+                    println!("Got {} new events", num_events);
+                }
+                for e in events.into_iter() {
+                    println!("{:#?}", e);
+                    apply(e, &mut s.db);
+                }
+                s.offset += num_events;
+            }
+            thread::sleep(Duration::from_millis(1000));
+        }
+    });
+}
+
 fn main() {
-    let state = Mutex::new(AppState{
+    let state = Arc::new(Mutex::new(AppState{
             db: HashMap::<String, Vec<String>>::new(),
             offset: 0,
-    });
-    let events = reqwest::Client::new()
-        .get("http://localhost:8000/log/0")
-        .send()
-        .unwrap()
-        .json::<Vec<Event>>().unwrap();
-
-    println!("Got events: {}", events.len());
-    {
-        let db = &mut state.lock().unwrap().db;
-        for e in events.into_iter() {
-            println!("{:#?}", e);
-            apply(e, db);
-        }
-    }
+    }));
+    background_update(Arc::clone(&state));
     rocket::ignite()
         .mount("/", routes![get])
         .manage(state)
