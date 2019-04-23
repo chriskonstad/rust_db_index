@@ -6,8 +6,11 @@
 #[macro_use] extern crate rocket_contrib;
 #[macro_use] extern crate serde_derive;
 
+extern crate strsim;
+
 use rocket_contrib::json::{Json, JsonValue};
 use rocket::State;
+use strsim::normalized_damerau_levenshtein;
 
 use std::thread;
 use std::time::Duration;
@@ -34,14 +37,25 @@ struct AppState {
     offset: usize,
 }
 
-#[get("/<key>", format = "json")]
-fn get(key: String, state : State<Arc<Mutex<AppState>>>) -> Option<Json<Match>> {
+#[get("/<key>/<similarity>", format = "json")]
+fn get(
+    key: String,
+    similarity: f64,
+    state : State<Arc<Mutex<AppState>>>) -> Option<Json<Match>> {
     let hashmap = &state.lock().unwrap().db;
-    hashmap.get(&key).map(|keys| {
-        Json(Match{
-            keys: keys.clone(),
-        })
-    })
+    let mut results = Vec::<String>::new();
+    for k in hashmap.keys() {
+        if similarity <= normalized_damerau_levenshtein(&key, k) {
+            results.push(k.clone());
+        }
+    }
+    results.sort_by(|a, b|
+        return normalized_damerau_levenshtein(&key, a).partial_cmp(
+            &normalized_damerau_levenshtein(&key, b)).unwrap());
+    match results.len() {
+        0 => None,
+        _ => Some(Json(Match{keys: results.into_iter().flat_map(|k| hashmap.get(&k).clone().into_iter()).flat_map(|x| x.into_iter()).cloned().collect()})),
+    }
 }
 
 #[catch(404)]
