@@ -51,9 +51,9 @@ fn get(key: String, similarity: f64, state: State<Arc<Mutex<AppState>>>) -> Opti
         }
     }
     results.sort_by(|a, b| {
-        return normalized_damerau_levenshtein(&key, a)
+        normalized_damerau_levenshtein(&key, a)
             .partial_cmp(&normalized_damerau_levenshtein(&key, b))
-            .unwrap();
+            .unwrap()
     });
     match results.len() {
         0 => None,
@@ -61,7 +61,7 @@ fn get(key: String, similarity: f64, state: State<Arc<Mutex<AppState>>>) -> Opti
             keys: results
                 .into_iter()
                 .flat_map(|k| hashmap.get(&k).into_iter())
-                .flat_map(|x| x.into_iter())
+                .flat_map(|x| x.iter())
                 .cloned()
                 .collect(),
         })),
@@ -83,7 +83,7 @@ fn apply(event: Event, state: &mut MessageMap) {
             let mut keys_to_delete = vec![];
             for (k, v) in state.iter_mut() {
                 v.remove_item(&key);
-                if v.len() == 0 {
+                if v.is_empty() {
                     keys_to_delete.push(k.clone());
                 }
             }
@@ -93,14 +93,14 @@ fn apply(event: Event, state: &mut MessageMap) {
             }
 
             // Add new entry
-            let entry = state.entry(value).or_insert(Vec::new());
+            let entry = state.entry(value).or_insert_with(Vec::new);
             entry.push(key);
         }
         Event::Delete { key } => {
             let mut keys_to_delete = vec![];
             for (k, v) in state.iter_mut() {
                 v.remove_item(&key);
-                if v.len() == 0 {
+                if v.is_empty() {
                     keys_to_delete.push(k.clone());
                 }
             }
